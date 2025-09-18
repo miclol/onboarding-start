@@ -13,8 +13,8 @@ module spi_peripheral (
 
 reg [1:0] sh_sclk, sh_copi, sh_ncs;
 wire sy_sclk, sy_copi, sy_ncs;
-reg [3:0] count = 0;
-reg [15:0] data;
+reg [3:0] count = 15;
+reg [14:0] data;
 
 always @(posedge clk) begin
     sh_copi <= {sh_copi[0], copi};
@@ -33,19 +33,19 @@ always @(posedge sy_sclk) begin
         en_reg_pwm_7_0 <= 0;
         en_reg_pwm_15_8 <= 0;
         pwm_duty_cycle <= 0;
-        count <= 0;
+        count <= 15;
     end else begin
         if (!sy_ncs) begin
-            data = {data[14:0], sy_copi};
-            count <= count + 1;
-            if (count == 15) begin
-                if (data[15] == 1 && data[14:8] <= 4) begin
-                    case (data[14:8])
-                        0: en_reg_out_7_0 <= data[7:0];
-                        1: en_reg_out_15_8 <= data[7:0];
-                        2: en_reg_pwm_7_0 <= data[7:0];
-                        3: en_reg_pwm_15_8 <= data[7:0];
-                        4: pwm_duty_cycle <= data[7:0];
+            data <= {data[14:0], sy_copi};
+            count <= count - 1;
+            if (count == 0) begin
+                if (data[14] == 1 && data[13:7] <= 4) begin
+                    case (data[13:7])
+                        0: en_reg_out_7_0 <= {data[6:0], sy_copi};
+                        1: en_reg_out_15_8 <= {data[6:0], sy_copi};
+                        2: en_reg_pwm_7_0 <= {data[6:0], sy_copi};
+                        3: en_reg_pwm_15_8 <= {data[6:0], sy_copi};
+                        4: pwm_duty_cycle <= {data[6:0], sy_copi};
                     endcase
                 end
             end
