@@ -23,7 +23,7 @@ always @(negedge rst_n) begin
     en_reg_pwm_7_0 <= 0;
     en_reg_pwm_15_8 <= 0;
     pwm_duty_cycle <= 0;
-    count <= 15;
+    count = 15;
 end
 
 always @(posedge clk) begin
