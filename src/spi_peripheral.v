@@ -36,16 +36,16 @@ always @(posedge sy_sclk) begin
         count <= 15;
     end else begin
         if (!sy_ncs) begin
-            data = {data[14:0], sy_copi};
+            data <= {data[14:0], sy_copi};
             count <= count - 1;
-            if (count == 0) begin
-                if (data[15] == 1 && data[14:8] <= 4) begin
-                    case (data[14:8])
-                        0: en_reg_out_7_0 <= data[7:0];
-                        1: en_reg_out_15_8 <= data[7:0];
-                        2: en_reg_pwm_7_0 <= data[7:0];
-                        3: en_reg_pwm_15_8 <= data[7:0];
-                        4: pwm_duty_cycle <= data[7:0];
+            if (count == 0) begin // smh everything is off by one because tto hates blocking assignments for some reason
+                if (data[14] == 1 && data[13:7] <= 4) begin
+                    case (data[13:7])
+                        0: en_reg_out_7_0 <= {data[6:0], sy_copi};
+                        1: en_reg_out_15_8 <= {data[6:0], sy_copi};
+                        2: en_reg_pwm_7_0 <= {data[6:0], sy_copi};
+                        3: en_reg_pwm_15_8 <= {data[6:0], sy_copi};
+                        4: pwm_duty_cycle <= {data[6:0], sy_copi};
                     endcase
                 end
             end
