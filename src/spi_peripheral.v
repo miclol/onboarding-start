@@ -41,7 +41,7 @@ always @(negedge sy_ncs) begin
 end
 
 always @(posedge sy_ncs) begin
-    count <= 15;
+    count = 15;
     en <= 0;
 end
 
