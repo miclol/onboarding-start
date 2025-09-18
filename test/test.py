@@ -18,6 +18,36 @@ async def await_half_sclk(dut):
             break
     return
 
+async def await_multibit_rising_edge(dut, reg):
+    prev_val = int(reg.value)
+    while True:
+        await ClockCycles(dut.clk, 1)
+        curr_val = int(reg.value)
+        mask = (~prev_val) & curr_val
+        if mask != 0:
+            return mask
+        prev_val = curr_val
+
+async def await_duty_cycle(dut, reg, freq, zero_test=True):
+    if zero_test:
+        cycles = int(1e7 / freq)
+        for i in range(cycles):
+            await ClockCycles(dut.clk, 1)
+            if int(reg.value) == 255:
+                return await await_duty_cycle(dut, reg, freq, False)
+        return 0
+    else:
+        while True:
+            if int(reg.value) == 255:
+                break
+            await ClockCycles(dut.clk, 1)
+        cycles = int(1e7 / freq)
+        for i in range(cycles):
+            await ClockCycles(dut.clk, 1)
+            if int(reg.value) == 0:
+                return i / cycles
+        return 1
+
 def ui_in_logicarray(ncs, bit, sclk):
     """Setup the ui_in value as a LogicArray."""
     return LogicArray(f"00000{ncs}{bit}{sclk}")
@@ -151,11 +181,108 @@ async def test_spi(dut):
 
 @cocotb.test()
 async def test_pwm_freq(dut):
-    # Write your test here
+    dut._log.info("Start PWM Freq. test")
+
+    # Set the clock period to 100 ns (10 MHz)
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+
+    # Reset
+    dut._log.info("Reset")
+    dut.ena.value = 1
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+    
+    ui_in_val = await send_spi_transaction(dut, 1, 0x00, 0xFF)  # Write transaction
+    await ClockCycles(dut.clk, 100)
+    ui_in_val = await send_spi_transaction(dut, 1, 0x01, 0xFF)  # Write transaction
+    await ClockCycles(dut.clk, 100)
+    ui_in_val = await send_spi_transaction(dut, 1, 0x02, 0xFF)  # Write transaction
+    await ClockCycles(dut.clk, 100)
+    ui_in_val = await send_spi_transaction(dut, 1, 0x03, 0xFF)  # Write transaction
+    await ClockCycles(dut.clk, 100)
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x80)  # Write transaction
+    
+    uo_out_val = await await_multibit_rising_edge(dut, dut.uo_out)
+    assert uo_out_val == 255, "Some bits of uo_out do not work"
+    start = cocotb.utils.get_sim_time(units="ns")
+    uo_out_val = await await_multibit_rising_edge(dut, dut.uo_out)
+    assert uo_out_val == 255, "Some bits of uo_out do not work"
+    freq = 1e9 / (cocotb.utils.get_sim_time(units="ns") - start)
+    assert abs(freq - 3000) <= 30, f"Expected 3000 Hz PWM, got {freq}"
+    
+    uio_out_val = await await_multibit_rising_edge(dut, dut.uio_out)
+    assert uio_out_val == 255, "Some bits of uo_out do not work"
+    start = cocotb.utils.get_sim_time(units="ns")
+    uio_out_val = await await_multibit_rising_edge(dut, dut.uio_out)
+    assert uio_out_val == 255, "Some bits of uo_out do not work"
+    freq = 1e9 / (cocotb.utils.get_sim_time(units="ns") - start)
+    assert abs(freq - 3000) <= 30, f"Expected 3000 Hz PWM, got {freq}"
+    
     dut._log.info("PWM Frequency test completed successfully")
 
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-    # Write your test here
+    dut._log.info("Start PWM Duty test")
+
+    # Set the clock period to 100 ns (10 MHz)
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+
+    # Reset
+    dut._log.info("Reset")
+    dut.ena.value = 1
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+    
+    ui_in_val = await send_spi_transaction(dut, 1, 0x00, 0xFF)  # Write transaction
+    await ClockCycles(dut.clk, 100)
+    ui_in_val = await send_spi_transaction(dut, 1, 0x01, 0xFF)  # Write transaction
+    await ClockCycles(dut.clk, 100)
+    ui_in_val = await send_spi_transaction(dut, 1, 0x02, 0xFF)  # Write transaction
+    await ClockCycles(dut.clk, 100)
+    ui_in_val = await send_spi_transaction(dut, 1, 0x03, 0xFF)  # Write transaction
+    await ClockCycles(dut.clk, 100)
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x80)  # Write transaction
+    
+    await await_multibit_rising_edge(dut, dut.uo_out)
+    start = cocotb.utils.get_sim_time(units="ns")
+    await await_multibit_rising_edge(dut, dut.uo_out)
+    freq = 1e9 / (cocotb.utils.get_sim_time(units="ns") - start)
+    duty = await await_duty_cycle(dut, dut.uo_out, freq)
+    assert abs(duty - 0.5) <= 0.005, f"Expected 50%, got {duty * 100}%"
+    
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x00)  # Write transaction
+    duty = await await_duty_cycle(dut, dut.uo_out, freq)
+    assert duty == 0, f"Expected 0%, got {duty * 100}%"
+    
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0xFF)  # Write transaction
+    duty = await await_duty_cycle(dut, dut.uo_out, freq)
+    assert duty == 1, f"Expected 100%, got {duty * 100}%"
+    
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x80)  # Write transaction
+    duty = await await_duty_cycle(dut, dut.uio_out, freq)
+    assert abs(duty - 0.5) <= 0.005, f"Expected 50%, got {duty * 100}%"
+    
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0x00)  # Write transaction
+    duty = await await_duty_cycle(dut, dut.uio_out, freq)
+    assert duty == 0, f"Expected 0%, got {duty * 100}%"
+    
+    ui_in_val = await send_spi_transaction(dut, 1, 0x04, 0xFF)  # Write transaction
+    duty = await await_duty_cycle(dut, dut.uio_out, freq)
+    assert duty == 1, f"Expected 100%, got {duty * 100}%"
+    
     dut._log.info("PWM Duty Cycle test completed successfully")
