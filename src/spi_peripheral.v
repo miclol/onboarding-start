@@ -11,18 +11,19 @@ module spi_peripheral (
     output reg [7:0] pwm_duty_cycle
 );
 
-reg [1:0] sh_sclk, sh_copi, sh_ncs;
-wire sy_sclk, sy_copi, sy_ncs;
+reg [1:0] sh_sclk, sh_copi, sh_ncs, sh_rst;
+wire sy_sclk, sy_copi, sy_ncs, sy_rst;
 reg en;
 reg [3:0] count = 15;
 reg [15:0] data;
 
-always @(negedge rst_n) begin
+always @(negedge sy_rst) begin
     en_reg_out_7_0 <= 0;
     en_reg_out_15_8 <= 0;
     en_reg_pwm_7_0 <= 0;
     en_reg_pwm_15_8 <= 0;
     pwm_duty_cycle <= 0;
+    en <= 0;
     count = 15;
 end
 
@@ -30,19 +31,21 @@ always @(posedge clk) begin
     sh_copi <= {sh_copi[0], copi};
     sh_ncs <= {sh_ncs[0], ncs};
     sh_sclk <= {sh_sclk[0], sclk};
+    sh_rst <= {sh_rst[0], rst_n};
 end
 
 assign sy_copi = sh_copi[1];
 assign sy_ncs = sh_ncs[1];
 assign sy_sclk = sh_sclk[1];
+assign sy_rst = sh_rst[1];
 
 always @(negedge sy_ncs) begin
     en <= 1;
 end
 
 always @(posedge sy_ncs) begin
-    count = 15;
     en <= 0;
+    count = 15;
 end
 
 always @(posedge sy_sclk) begin
